@@ -4,6 +4,8 @@ import terminalio
 import time
 import digitalio
 
+import ulab.numpy as np
+
 from adafruit_display_text import label
 from fourwire import FourWire
 from adafruit_button import Button
@@ -129,89 +131,107 @@ distance = 0
 
 def constraintsMet(direction):
     if distance > 150 and direction == "ABI":
-        print("Too close to PC, only allow UFI")
+        #print("Too close to PC, only allow UFI")
         abiOut.value = False
         return False
     elif distance < 145 and direction == "UFI":
-        print("Too high up, only allow ABI")
+        #print("Too high up, only allow ABI")
         ufiOut.value = False
         return False
     return True
 
+h = [
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+]
+
+data = np.zeros(len(h), dtype=np.float)
+
 def automaticGotoDest(desiredDeskHeight):
-    distance = 0
+    distance = 100
     timeStart = time.monotonic()
-    while distance - desiredDeskHeight < 1:
+    h = [
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    ]
+
+    data = np.zeros(len(h), dtype=np.float)
+    while True:
         try:
             distance = distSensor.distance
-            print("Distance:", distance)
-            sensorText.text = f"Distance: {distance:.2f} cm"
+            data = np.roll(data, 1)
+            data[-1] = distance
+            filtered = np.sum(data * h)
+            sensorText.text = f"Distance: {filtered:.2f} cm"
         except RuntimeError:
-            # On timeout, don’t crash—just skip this cycle
-            print("Retrying!")
             pass
-        # Move down
-        abiOut.value = True
-        ufiOut.value = False
-        time.sleep(0.05)
-        if time.monotonic() - timeStart > 5:
-            print("Stopping automatic movement after 5 seconds")
+
+        diff = distance - desiredDeskHeight
+        if abs(diff) < 0.5:
             break
-    while distance - desiredDeskHeight > -1:
-        try:
-            distance = distSensor.distance
-            print("Distance:", distance)
-            sensorText.text = f"Distance: {distance:.2f} cm"
-        except RuntimeError:
-            # On timeout, don’t crash—just skip this cycle
-            print("Retrying!")
-            pass
-        # Move up
-        ufiOut.value = True
-        abiOut.value = False
+        elif diff > 0.5:
+            # Move up
+            abiOut.value = False
+            ufiOut.value = True
+        else:
+            # Move down
+            ufiOut.value = False
+            abiOut.value = True
+
         time.sleep(0.05)
+        
         if time.monotonic() - timeStart > 5:
-            print("Stopping automatic movement after 5 seconds")
             break
+
     # Stop both outputs
     ufiOut.value = False
     abiOut.value = False
     return
     
-#automaticGotoDest(147)  # Example: move to desk height of 150 cm
-        
+#automaticGotoDest(153)  # Example: move to desk height of 150 cm
+
+#time.sleep(2)  # Wait a bit before starting the main loop
+
+#automaticGotoDest(139)
+
 # Main loop
 while True:
-    if counter % 10 == 0:
+    if counter % 5 == 0:
         touch = touchSensor.touch_point
         if touch:
             x, y, z = touch
-            print("Touch at:", touch)
+            #print("Touch at:", touch)
                 # Check each button’s .contains(x, y)
             if ufiButton.contains((x, y)):# and constraintsMet("UFI"):
                 ufiOut.value = True
                 abiOut.value = False
-                if not buttonVisualized:
-                    ufiButton.label = "(UFI)"
+                if not buttonVisualized and counter % 1 == 0:
                     abiButton.label = "ABI"
+                    ufiButton.label = "(UFI)"
             elif abiButton.contains((x, y)):# and constraintsMet("ABI"):
-                print("Right button touched")
+                #print("Right button touched")
                 ufiOut.value = False
                 abiOut.value = True
-                if not buttonVisualized:
+                if not buttonVisualized and counter % 1 == 0:
                     ufiButton.label = "UFI"
                     abiButton.label = "(ABI)"
             else:
                 # Touched outside both buttons
-                print("Touched outside buttons")
+                #print("Touched outside buttons")
                 ufiOut.value = False
                 abiOut.value = False
-                if not buttonVisualized:
+                if not buttonVisualized and counter % 1 == 0:
                     ufiButton.label = "UFI"
                     abiButton.label = "ABI"
             buttonVisualized = True
         else:
-            if buttonVisualized:
+            if buttonVisualized and counter % 1 == 0:
                 #text_area.text = "Hello World! No Touch"
                 # Optionally, clear button “checkmarks” when not touching:
                 ufiButton.label = "UFI"
@@ -220,16 +240,24 @@ while True:
             ufiOut.value = False
             abiOut.value = False
 
-    if counter % 20 == 0:
+    if counter % 5 == 0:
         # Distance reading (unchanged)
         try:
             distance = distSensor.distance
-            print("Distance:", distance)
-            sensorText.text = f"Distance: {distance:.2f} cm"
+            #print("Distance:", distance)
         except RuntimeError:
             # On timeout, don’t crash—just skip this cycle
-            print("Retrying!")
+            #print("Retrying!")
             pass
+        
+        data = np.roll(data, 1)
+        data[-1] = distance
+        
+        filtered = np.sum(data * h)
+        
+        sensorText.text = f"Distance: {filtered:.2f} cm"
+        
+        #print("Filtered distance:", filtered)
     
     counter += 1
     time.sleep(0.005)
