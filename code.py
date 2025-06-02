@@ -24,7 +24,7 @@ tft_dc = board.D12
 touch_cs = digitalio.DigitalInOut(board.D5)
 
 display_bus = FourWire(spi, command=tft_dc, chip_select=tft_cs)
-display = HX8357(display_bus, width=480, height=320)
+display = HX8357(display_bus, width=480, height=320, )
 
 # Touch‐controller calibration/flip (unchanged)
 touchFlip = (False, True)
@@ -93,7 +93,8 @@ splash.append(text_group)
 # 4) Distance label
 sensorText = label.Label(terminalio.FONT, text="Distance: ", color=0xFFFF00)
 sensorText.x = 20
-sensorText.y = 30
+sensorText.y = 130
+sensorText.scale = 2
 splash.append(sensorText)
 
 # 5) Two on‐screen buttons (left and right)
@@ -200,12 +201,55 @@ def automaticGotoDest(desiredDeskHeight):
 
 #automaticGotoDest(139)
 
+def everythingBlack():
+    # Set display background to full black
+    color_palette[0] = 0x000000  # Black
+    inner_palette[0] = 0x000000  # Black
+
+    ufiButton.fill_color = 0x000000
+    ufiButton.outline_color = 0x000000
+    ufiButton.selected_fill = 0x000000
+    ufiButton.selected_outline = 0x000000
+    ufiButton.label_color = 0x000000
+
+    abiButton.fill_color = 0x000000
+    abiButton.outline_color = 0x000000
+    abiButton.selected_fill = 0x000000
+    abiButton.selected_outline = 0x000000
+    abiButton.label_color = 0x000000
+
+    sensorText.color = 0x000000
+    
+def everythingNormal():
+    # Set display background to original colors
+    color_palette[0] = 0xAA0088  # Bright Green
+    inner_palette[0] = 0xAA0088  # Purple
+
+    ufiButton.fill_color = 0x4444AA
+    ufiButton.outline_color = 0xFFFF00
+    ufiButton.selected_fill = 0xAA4444
+    ufiButton.selected_outline = 0xFFFFFF
+    ufiButton.label_color = 0xFFFFFF
+
+    abiButton.fill_color = 0x4444AA
+    abiButton.outline_color = 0xFFFF00
+    abiButton.selected_fill = 0xAA4444
+    abiButton.selected_outline = 0xFFFFFF
+    abiButton.label_color = 0xFFFFFF
+
+    sensorText.color = 0xFFFF00
+
 # Main loop
+time.sleep(1)
+lastTouch = time.monotonic()  # Initialize last touch time
+currentDisp = "Normal"
+
 while True:
     if counter % 5 == 0:
         touch = touchSensor.touch_point
         if touch:
             x, y, z = touch
+            lastTouch = time.monotonic()
             #print("Touch at:", touch)
                 # Check each button’s .contains(x, y)
             if ufiButton.contains((x, y)):# and constraintsMet("UFI"):
@@ -240,6 +284,15 @@ while True:
             ufiOut.value = False
             abiOut.value = False
 
+    # if not touched for 30 seconds
+    if counter % 100 == 0:
+        if time.monotonic() - lastTouch > 15:
+            everythingBlack()
+            currentDisp = "Black"
+        elif currentDisp == "Black":
+            everythingNormal()
+            currentDisp = "Normal"
+        
     if counter % 5 == 0:
         # Distance reading (unchanged)
         try:
